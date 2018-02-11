@@ -12,3 +12,5 @@
 ** rewrite all the docs
 ** explore dockerizing compilebox
    might ease installation
+** remove bash scripting in favor of Go API
+
