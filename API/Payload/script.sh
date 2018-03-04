@@ -13,7 +13,7 @@
 
 compiler=$1
 file=$2
-output=$3
+runner=$3
 addtionalArg=$4
 
 
@@ -43,21 +43,82 @@ exec  2> $"/usercode/errors"
 #3>&1 4>&2 >
 
 START=$(date +%s.%2N)
+NL=$'\n'
+FIRST_LINE="TRUE"
+IN_SEP="*-BRK-*"
+OUT_SEP="*-BRK-*"
 #Branch 1
-if [ "$output" = "" ]; then
-    $compiler /usercode/$file -< $"/usercode/inputFile" #| tee /usercode/output.txt
+if [ "$runner" = "" ]; then
+    # while read p; do 
+    #     echo -n $p | $compiler /usercode/$file
+    # done < $"/usercode/inputFile"
+    # Reads until reaching $SEP and then runs command with that
+    # block of input
+	while read p; do
+		if [ "$p" = "$IN_SEP" ]; then
+			
+			# run program with input
+			OUTPUT="$(echo -n "$INPUT" | $compiler /usercode/$file)"
+
+			if [ ${#OUTPUT} = 0 ]; then 
+				# if no input is produced, make a newline (makes later parsing possible)
+				echo
+			else
+				# otherwise just echo the output
+				echo "$OUTPUT"
+			fi
+
+			echo "$OUT_SEP"
+			INPUT=""
+			FIRST_LINE="TRUE"
+		else
+			if [ "$FIRST_LINE" = "FALSE" ];then
+				INPUT="$INPUT$NL"
+				# echo "Adding \n"
+			fi
+			INPUT="$INPUT$p"
+			FIRST_LINE="FALSE"
+		fi
+	done < $"/usercode/inputFile"
+
 #Branch 2
-else
+else  # runner was not blank
 	#In case of compile errors, redirect them to a file
-        $compiler /usercode/$file $addtionalArg #&> /usercode/errors.txt
-	#Branch 2a
+    $compiler /usercode/$file $addtionalArg > /dev/null #&> /usercode/errors.txt
+	#Branch 2a : exit code is zero aka success
 	if [ $? -eq 0 ];	then
-		$output -< $"/usercode/inputFile" #| tee /usercode/output.txt    
-	#Branch 2b
+			while read p; do
+				if [ "$p" = "$IN_SEP" ]; then
+					
+					# run program with input
+					OUTPUT="$(echo -n "$INPUT" | $runner)"
+
+					if [ ${#OUTPUT} = 0 ]; then 
+						# if no input is produced, make a newline (makes later parsing possible)
+						echo
+					else
+						# otherwise just echo the output
+						echo "$OUTPUT"
+					fi
+
+					echo "$OUT_SEP"
+					INPUT=""
+					FIRST_LINE="TRUE"
+				else
+					if [ "$FIRST_LINE" = "FALSE" ];then
+						INPUT="$INPUT$NL"
+						# echo "Adding \n"
+					fi
+					INPUT="$INPUT$p"
+					FIRST_LINE="FALSE"
+				fi
+			done < $"/usercode/inputFile"
+
+	#Branch 2b : exit code is not zero
 	else
-	    echo "Compilation Failed"
+	    echo "Compilation Failed:"
 	    #if compilation fails, display the output file	
-	    #cat /usercode/errors.txt
+	    cat /usercode/errors.txt
 	fi
 fi
 
